@@ -5432,7 +5432,8 @@ local commandHandlers = {
     get_address_info = cmd_get_address_info,
     checksum_memory = cmd_checksum_memory,
     generate_signature = cmd_generate_signature,
-    
+    set_comment = cmd_set_comment,
+
     -- DBVM Hypervisor Tools (Safe Dynamic Tracing - Ring -1)
     get_physical_address = cmd_get_physical_address,
     start_dbvm_watch = cmd_start_dbvm_watch,
