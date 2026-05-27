@@ -146,13 +146,13 @@ DEFAULT_TCP_PORT = 9876
 def _parse_timeout_seconds(raw_value):
     """Parse CE_MCP_TIMEOUT seconds; <=0 disables timeout."""
     if raw_value is None:
-        return 300.0
+        return 60.0
     try:
         timeout = float(raw_value)
     except (TypeError, ValueError):
-        return 300.0
+        return 60.0
     if not math.isfinite(timeout):
-        return 300.0
+        return 60.0
     if timeout <= 0:
         return None
     return timeout

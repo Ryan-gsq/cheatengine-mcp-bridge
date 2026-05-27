@@ -367,6 +367,55 @@ local type_func_map = { ["nil"] = encode_nil, ["table"] = encode_table, ["string
 encode = function(val, stack) local t = type(val) local f = type_func_map[t] if f then return f(val, stack) end error("unexpected type '" .. t .. "'") end
 json.encode = encode
 
+-- Pretty (indented) JSON encoder for human-readable logs
+local encode_pretty
+local function encode_pretty_table(val, stack, indent, depth)
+  local stack = stack or {}
+  if stack[val] then error("circular reference") end
+  stack[val] = true
+  local pad     = string.rep(indent, depth + 1)
+  local padOuter = string.rep(indent, depth)
+  if rawget(val, 1) ~= nil or next(val) == nil then
+    if next(val) == nil then stack[val] = nil; return "[]" end
+    local res = {}
+    for i, v in ipairs(val) do
+      table.insert(res, pad .. encode_pretty(v, stack, indent, depth + 1))
+    end
+    stack[val] = nil
+    return "[\n" .. table.concat(res, ",\n") .. "\n" .. padOuter .. "]"
+  else
+    local keys = {}
+    for k in pairs(val) do table.insert(keys, k) end
+    table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
+    local res = {}
+    for _, k in ipairs(keys) do
+      local sk = (type(k) == "string") and k or tostring(k)
+      table.insert(res, pad .. encode_string(sk) .. ": " .. encode_pretty(val[k], stack, indent, depth + 1))
+    end
+    stack[val] = nil
+    return "{\n" .. table.concat(res, ",\n") .. "\n" .. padOuter .. "}"
+  end
+end
+local pretty_type_func_map = {
+  ["nil"]      = encode_nil,
+  ["table"]    = encode_pretty_table,
+  ["string"]   = encode_string,
+  ["number"]   = encode_number,
+  ["boolean"]  = tostring,
+  ["function"] = function() return "null" end,
+  ["userdata"] = function() return "null" end,
+}
+encode_pretty = function(val, stack, indent, depth)
+  local t = type(val)
+  local f = pretty_type_func_map[t]
+  if f == encode_pretty_table then return f(val, stack, indent, depth) end
+  if f then return f(val) end
+  error("unexpected type '" .. t .. "'")
+end
+json.encode_pretty = function(val, indent)
+  return encode_pretty(val, {}, indent or "  ", 0)
+end
+
 local function decode_scanwhite(str, pos) return str:find("%S", pos) or #str + 1 end
 local decode
 local function decode_string(str, pos)
@@ -5597,21 +5646,31 @@ local function executeCommand(jsonRequest)
     if not ok or not request then
         return json.encode({ jsonrpc = "2.0", error = { code = -32700, message = "Parse error" }, id = nil })
     end
-    
+
     local method = request.method
     local params = request.params or {}
     local id = request.id
-    
+
     local handler = commandHandlers[method]
     if not handler then
         return json.encode({ jsonrpc = "2.0", error = { code = -32601, message = "Method not found: " .. tostring(method) }, id = id })
     end
-    
+
+    -- Pre-call log: method + params
+    print(string.format("[MCP v%s] >>> CALL %s\nparams: %s",
+        VERSION, tostring(method), json.encode_pretty(params)))
+
     local ok2, result = pcall(handler, params)
     if not ok2 then
+        print(string.format("[MCP v%s] <<< ERROR %s\nerror: %s",
+            VERSION, tostring(method), tostring(result)))
         return json.encode({ jsonrpc = "2.0", error = { code = -32603, message = "Internal error: " .. tostring(result) }, id = id })
     end
-    
+
+    -- Post-call log: method + return value
+    print(string.format("[MCP v%s] <<< RETURN %s\nresult: %s",
+        VERSION, tostring(method), json.encode_pretty(result)))
+
     return json.encode({ jsonrpc = "2.0", result = result, id = id })
 end
 
