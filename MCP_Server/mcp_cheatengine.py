@@ -870,6 +870,134 @@ def ping() -> str:
     """Check connectivity and get version info."""
     return format_result(ce_client.send_command("ping"))
 
+
+@mcp.tool()
+def int_convert(value: str, return_base: int = 16) -> str:
+    """Convert integer between decimal and hex.
+
+    Args:
+        value: Input number as string (prefix with 0x for hex) or numeric.
+        return_base: 10 or 16 (default 16).
+    
+    Returns JSON with: success, input, base, value, and the alternate representation.
+    """
+    try:
+        # Parse input: support 0x prefix for hex, otherwise decimal
+        value_str = str(value).strip()
+        if value_str.lower().startswith('0x'):
+            num = int(value_str, 16)
+        else:
+            num = int(value_str)
+        
+        # Format output based on return_base
+        if return_base == 16:
+            return json.dumps({
+                "success": True,
+                "input": value_str,
+                "base": 16,
+                "value": hex(num) if num >= 0 else hex(num),
+                "decimal": str(num)
+            })
+        else:
+            return json.dumps({
+                "success": True,
+                "input": value_str,
+                "base": 10,
+                "value": str(num),
+                "hex": hex(num) if num >= 0 else hex(num)
+            })
+    except (ValueError, TypeError) as e:
+        return json.dumps({
+            "success": False,
+            "error": f"Invalid numeric input: {str(e)}",
+            "error_code": "INVALID_PARAMS"
+        })
+
+
+@mcp.tool()
+def int_calc(operand1: str, operator: str, operand2: str, return_base: int = 16) -> str:
+    """Compute basic arithmetic between two integers (supports hex input).
+
+    Args:
+        operand1: First operand as string (0x prefix for hex) or number.
+        operator: One of '+', '-', '*', '/'.
+        operand2: Second operand as string or number.
+        return_base: 10 or 16 for returned primary value (default 16).
+    
+    Returns JSON with: success, operand1, operator, operand2, base, value, and alternate representation.
+    """
+    def parse_num(s):
+        s = str(s).strip()
+        if s.lower().startswith('0x'):
+            return int(s, 16)
+        return int(s)
+    
+    try:
+        n1 = parse_num(operand1)
+        n2 = parse_num(operand2)
+        
+        # Perform operation
+        if operator == '+':
+            result = n1 + n2
+        elif operator == '-':
+            result = n1 - n2
+        elif operator in ('*', 'x', 'X'):
+            result = n1 * n2
+        elif operator == '/':
+            if n2 == 0:
+                return json.dumps({
+                    "success": False,
+                    "error": "Division by zero",
+                    "error_code": "INVALID_PARAMS"
+                })
+            result = n1 / n2
+        else:
+            return json.dumps({
+                "success": False,
+                "error": f"Unsupported operator: {operator}",
+                "error_code": "INVALID_PARAMS"
+            })
+        
+        # Format output
+        result_int = int(result)
+        if return_base == 16:
+            return json.dumps({
+                "success": True,
+                "operand1": str(operand1),
+                "operator": operator,
+                "operand2": str(operand2),
+                "base": 16,
+                "value": hex(result_int),
+                "decimal": str(result)
+            })
+        else:
+            return json.dumps({
+                "success": True,
+                "operand1": str(operand1),
+                "operator": operator,
+                "operand2": str(operand2),
+                "base": 10,
+                "value": str(result),
+                "hex": hex(result_int)
+            })
+    except (ValueError, ZeroDivisionError, TypeError) as e:
+        return json.dumps({
+            "success": False,
+            "error": f"Calculation failed: {str(e)}",
+            "error_code": "INVALID_PARAMS"
+        })
+
+
+@mcp.tool()
+def set_comment(address: str, text: str) -> str:
+    """Set a comment at an address in the target process's address space.
+
+    Args:
+        address: CE address string (e.g., '0x140001000' or 'module.exe+1000') or integer.
+        text: Comment text to write.
+    """
+    return format_result(ce_client.send_command("set_comment", {"address": address, "text": text}))
+
 # --- DEBUG OUTPUT & MULTIMEDIA (Unit 23) ---
 
 @mcp.tool()

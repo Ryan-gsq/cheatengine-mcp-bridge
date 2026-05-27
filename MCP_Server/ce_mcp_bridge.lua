@@ -1740,6 +1740,24 @@ function cmd_search_string(params)
     return { success = true, count = #addresses, addresses = addresses }
 end
 
+
+function cmd_set_comment(params)
+    -- params.address: CEAddressString or integer
+    -- params.text or params.comment: string
+    local addr = params.address or params.addr
+    local text = params.text or params.comment or params.value
+
+    if not addr then return { success = false, error = "address is required", error_code = "INVALID_PARAMS" } end
+    if not text or type(text) ~= "string" then return { success = false, error = "text is required and must be a string", error_code = "INVALID_PARAMS" } end
+
+    if type(addr) == "string" then addr = getAddressSafe(addr) end
+    if not addr then return { success = false, error = "Invalid address", error_code = "INVALID_ADDRESS" } end
+
+    local ok, err = pcall(setComment, addr, text)
+    if not ok then return { success = false, error = tostring(err), error_code = "INTERNAL_ERROR" } end
+    return { success = true, address = toHex(addr) }
+end
+
 -- ============================================================================
 -- COMMAND HANDLERS - HIGH-LEVEL ANALYSIS TOOLS
 -- ============================================================================
