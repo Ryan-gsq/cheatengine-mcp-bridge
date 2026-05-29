@@ -5657,19 +5657,19 @@ local function executeCommand(jsonRequest)
     end
 
     -- Pre-call log: method + params
-    print(string.format("[MCP v%s] >>> CALL %s\nparams: %s",
-        VERSION, tostring(method), json.encode_pretty(params)))
+    log(string.format(">>> CALL %s\nparams: %s",
+        tostring(method), json.encode_pretty(params)))
 
     local ok2, result = pcall(handler, params)
     if not ok2 then
-        print(string.format("[MCP v%s] <<< ERROR %s\nerror: %s",
-            VERSION, tostring(method), tostring(result)))
+        log(string.format("<<< ERROR %s\nerror: %s",
+            tostring(method), tostring(result)))
         return json.encode({ jsonrpc = "2.0", error = { code = -32603, message = "Internal error: " .. tostring(result) }, id = id })
     end
 
     -- Post-call log: method + return value
-    print(string.format("[MCP v%s] <<< RETURN %s\nresult: %s",
-        VERSION, tostring(method), json.encode_pretty(result)))
+    log(string.format("<<< RETURN %s\nresult: %s",
+        tostring(method), json.encode_pretty(result)))
 
     return json.encode({ jsonrpc = "2.0", result = result, id = id })
 end
