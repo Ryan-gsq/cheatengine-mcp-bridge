@@ -274,7 +274,7 @@ class CEBridgeClient:
             }
             
             try:
-                req_json = json.dumps(request).encode('utf-8')
+                req_json = json.dumps(request, ensure_ascii=False).encode('utf-8')
                 response = self._exchange_with_timeout(req_json, method)
                 
                 if 'error' in response:

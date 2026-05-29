@@ -38,7 +38,7 @@ local function toHexLow32(num)
 end
 
 local function log(msg)
-    print("[" .. os.date("%H:%M") .. "] [MCP v" .. VERSION .. "] " .. msg)
+    print("[" .. os.date("%H:%M:%S") .. "] [CE MCP] " .. msg)
 end
 
 -- Universal 32/64-bit architecture helper
@@ -417,6 +417,17 @@ json.encode_pretty = function(val, indent)
 end
 
 local function decode_scanwhite(str, pos) return str:find("%S", pos) or #str + 1 end
+local function codepointToUtf8(cp)
+  if cp < 0x80 then
+    return string.char(cp)
+  elseif cp < 0x800 then
+    return string.char(0xC0 + (cp >> 6), 0x80 + (cp & 0x3F))
+  elseif cp < 0x10000 then
+    return string.char(0xE0 + (cp >> 12), 0x80 + ((cp >> 6) & 0x3F), 0x80 + (cp & 0x3F))
+  else
+    return string.char(0xF0 + (cp >> 18), 0x80 + ((cp >> 12) & 0x3F), 0x80 + ((cp >> 6) & 0x3F), 0x80 + (cp & 0x3F))
+  end
+end
 local decode
 local function decode_string(str, pos)
   local startpos = pos + 1
@@ -428,9 +439,39 @@ local function decode_string(str, pos)
     endpos = endpos + 1
   end
   local s = str:sub(startpos, endpos - 1)
-  s = s:gsub("\\.", function(c) return escape_char_map_inv[c:sub(2)] or c end)
-  s = s:gsub("\\u(%x%x%x%x)", function(hex) return string.char(tonumber(hex, 16)) end)
-  return s, endpos + 1
+  -- Fast path: no escapes to process.
+  if not s:find("\\", 1, true) then return s, endpos + 1 end
+  -- Single-pass scan so a decoded byte (e.g. a literal backslash from \)
+  -- can never be re-interpreted as the start of another escape sequence.
+  local out = {}
+  local i, n = 1, #s
+  while i <= n do
+    local c = s:sub(i, i)
+    if c ~= "\\" then
+      out[#out + 1] = c
+      i = i + 1
+    elseif s:sub(i + 1, i + 1) == "u" then
+      local hi = tonumber(s:sub(i + 2, i + 5), 16)
+      if not hi then return nil, "invalid \\u escape" end
+      i = i + 6
+      if hi >= 0xD800 and hi <= 0xDBFF and s:sub(i, i + 1) == "\\u" then
+        local lo = tonumber(s:sub(i + 2, i + 5), 16)
+        if lo and lo >= 0xDC00 and lo <= 0xDFFF then
+          out[#out + 1] = codepointToUtf8(0x10000 + ((hi - 0xD800) << 10) + (lo - 0xDC00))
+          i = i + 6
+        else
+          out[#out + 1] = codepointToUtf8(hi)
+        end
+      else
+        out[#out + 1] = codepointToUtf8(hi)
+      end
+    else
+      local e = s:sub(i + 1, i + 1)
+      out[#out + 1] = escape_char_map_inv[e] or e
+      i = i + 2
+    end
+  end
+  return table.concat(out), endpos + 1
 end
 local function decode_number(str, pos)
   local numstr = str:match("^-?%d+%.?%d*[eE]?[+-]?%d*", pos)
