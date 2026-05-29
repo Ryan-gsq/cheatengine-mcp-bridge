@@ -38,7 +38,7 @@ local function toHexLow32(num)
 end
 
 local function log(msg)
-    print("[MCP v" .. VERSION .. "] " .. msg)
+    print("[" .. os.date("%H:%M") .. "] [MCP v" .. VERSION .. "] " .. msg)
 end
 
 -- Universal 32/64-bit architecture helper
